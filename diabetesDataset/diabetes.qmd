@@ -1,0 +1,305 @@
+---
+title: "Diabetes Prediction Analysis"
+format:
+  html:
+    toc: true
+    toc-location: left
+    fig-align: center
+    fig-cap-location: bottom
+    other-links:
+      - text: Diabetes Dataset - Kaggle Dataset
+        href: https://www.kaggle.com/datasets/akshaydattatraykhare/diabetes-dataset
+execute:
+  echo: false
+  warning: false
+  message: false
+    
+editor: visual
+---
+
+# Objective:
+
+Predict the onset of diabetes based on diagnostic measurements.
+
+# Dataset Description:
+
+This dataset contains diagnostic measurements for 768 individuals.
+
+The `Outcome` variable indicates whether the patient has diabetes (1) or not (0)
+
+```{r}
+#| label: installLoadPackages
+#| warning: false
+#| message: false
+#| include: false
+
+# Required packages
+requiredPackages <- c("tidyverse", "reticulate", "scales", "readxl", "REDCapR", "RKaggle")
+
+# Function to check if packages are installed
+installPackages <- function(pkg) {
+  if(!requireNamespace(pkg, quietly = TRUE)) {
+    install.packages(pkg, dependencies = TRUE, quiet = FALSE)
+  }
+}
+
+# Install packages if not found on local
+invisible(sapply(requiredPackages, installPackages))
+
+# Load packages
+invisible(lapply(requiredPackages, library, character.only = TRUE))
+```
+
+```{r}
+#| label: installPythonPackages
+#| warning: false
+#| messaage: true
+#| include: false
+
+# Include the required packages
+pythonPackages <- c('numpy', 'pandas', 'seaborn', 'matplotlib', 'statsmodels', 'scienceplots', 'scikit-learn')
+
+# Function to check whether the packages / modules have been installed
+installPythonPackages <- function(packages) {
+  for(pkg in packages) {
+    if(!reticulate::py_module_available(pkg)) {
+      message("Installing Python packages ", pkg)
+      reticulate::py_install(pkg, pip = FALSE)
+    } else {
+      message("Python package ", pkg, "is already installed")
+    }
+  }
+}
+
+# Install packages
+installPythonPackages(pythonPackages)
+```
+
+```{python}
+#| label: loadPythonModules
+#| message: false
+#| warning: false
+#| include: false
+
+# Import python modules
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import statsmodels.api as sm
+import scienceplots
+import seaborn as sns
+import sklearn
+
+# Set style as 'Science' and 'Nature'
+plt.style.use(['nature', 'science'])
+```
+
+# Import data:
+
+```{r}
+#| echo: true
+
+# Import data from Kaggle using RKaggle package
+diabetes <- get_dataset('akshaydattatraykhare/diabetes-dataset')
+```
+
+# Convert to python dataframe:
+
+```{python}
+#| echo: true
+
+# Convert r dataframe to python dataframe using Reticulate package
+diabetes = r.diabetes
+```
+
+# Exploratory Data Analysis:
+
+## Information of dataset:
+
+```{python}
+diabetes.head()
+
+diabetes.info()
+```
+
+## Missing values:
+
+```{python}
+#| label: tbl-MissingValues
+#| tbl-cap: 'Amount of missing values per column'
+#| tbl-cap-location: bottom
+print(diabetes.isna().sum())
+```
+
+No missing values observed in @tbl-MissingValues for any of the columns.
+
+## Distribution of age:
+
+```{python}
+#| label: fig-AgeDist
+#| fig-cap: 'Distribution of Age'
+
+sns.histplot(data=diabetes, x='Age')
+plt.title('Age Distibution')
+plt.xlabel('Age')
+plt.ylabel('Count')
+plt.show()
+```
+
+```{python}
+print('The average age of the participants: {}'.format(round(diabetes['Age'].mean())),"year's old")
+```
+
+```{python}
+#| label: fig-HeatmapCorr
+#| fig-cap: 'A heatmap showing if any correlations could be determined'
+
+sns.heatmap(diabetes.corr(), annot=True)
+plt.title('Heatmap indicating correlations')
+plt.show()
+```
+
+# Split the data for Machine Learning:
+
+```{python}
+
+from sklearn.model_selection import train_test_split
+
+# Split the data
+X = diabetes.drop('Outcome', axis=1)
+y = diabetes['Outcome']
+
+# Set training and test data
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=123)
+```
+
+```{python}
+#| label: fig-FeatureImportance
+
+from sklearn.ensemble import RandomForestClassifier
+
+rf = RandomForestClassifier();
+rf.fit(X_train, y_train);
+
+# Plot the importance
+
+feature_importance = pd.DataFrame({
+    'Feature': X_train.columns,
+    'Importance': rf.feature_importances_
+}).sort_values('Importance', ascending=True)
+
+# Create horizontal bar plot
+plt.figure(figsize=(10,6))
+sns.barplot(
+    data=feature_importance,
+    x='Importance',
+    y='Feature',
+    palette='viridis',
+    edgecolor='black'
+)
+
+# Add annotations
+for i, v in enumerate(feature_importance['Importance']):
+    plt.text(v + 0.01, i, f"{v:.3f}", color='black', va='center')
+
+plt.title('Feature Importance Scores', fontsize=14)
+plt.xlabel('Relative Importance', fontsize=12)
+plt.ylabel('Features', fontsize=12)
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| label: selectSplitFeatures
+
+from sklearn.metrics import accuracy_score
+
+# Select features
+selectedFeatures = ['Glucose', 'BMI', 'Age']
+X_selected = diabetes[selectedFeatures]
+
+# Split into train and test data with the new features
+X_trainS, X_testS, y_trainS, y_testS = train_test_split(X_selected, y, test_size=0.3, random_state=123)
+
+rfS = RandomForestClassifier(random_state=123);
+rfS.fit(X_trainS, y_trainS);
+yS_pred = rfS.predict(X_testS);
+accuracy = accuracy_score(y_testS, yS_pred);
+print('The Accuracy score is: {:.2f}%'.format(accuracy * 100))
+
+```
+
+```{python}
+#| label: CrossValidation
+
+from sklearn.model_selection import cross_val_score
+
+scores = cross_val_score(rfS, X_selected, y, cv=5, scoring='accuracy')
+print('Cross-validated accuracy: {:.2f}% (+/- {:.2f}%)'.format(scores.mean()*100, scores.std()*100))
+```
+
+# Hyperparameter Tuning:
+
+```{python}
+#| label: HyperTuning
+
+from sklearn.model_selection import GridSearchCV
+
+paramGrid = {
+  'n_estimators': [50, 100, 150, 200],
+  'max_depth': [5, 10, 15, 50],
+  'min_samples_split': [2, 5, 10, 20],
+  'min_samples_leaf': [1, 2, 4, 8]
+}
+
+gridSearch = GridSearchCV(
+  estimator = RandomForestClassifier(random_state=123),
+  param_grid = paramGrid,
+  cv = 5,
+  scoring = 'accuracy'
+)
+
+gridSearch.fit(X_trainS, y_train)
+
+print('Best parameters found: ', gridSearch.best_params_)
+print('Best cross-validation accuracy: {:.2f}%'.format(gridSearch.best_score_ * 100))
+```
+
+```{python}
+#| label: PlotHyperTuning
+
+def plot_validation_curve(param_name, x_ticks):
+    plt.figure(figsize=(10,6))
+    sns.lineplot(
+        data=pd.DataFrame(gridSearch.cv_results_),
+        x=f'param_{param_name}',
+        y='mean_test_score',
+        errorbar=('ci', 95),
+        marker='o'
+    )
+    plt.axhline(y=gridSearch.best_score_, color='r', linestyle='--')
+    plt.axvline(x=gridSearch.best_params_[param_name], color='g', linestyle=':')
+    plt.xticks(ticks=x_ticks)
+    plt.title(f"Validation Curve for {param_name}")
+    plt.ylabel("Accuracy")
+    plt.xlabel(param_name)
+    plt.show()
+
+plot_validation_curve('n_estimators', [50,100,150,200])
+plot_validation_curve('max_depth', [5,10,15,50])
+plot_validation_curve('min_samples_split', [2,5,10,20])
+```
+
+# Conclusion:
+
+The feature importance plot highlights that `Glucose`, `BMI`, and `Age` are the most influential factors in predicting diabetes within this dataset.
+
+In conclusion, this analysis provides insights into the diabetes dataset, identifies key predictive features and demostrates a machine learning workflow for predicting diabetes.
+
+## Future work:
+
+-   Explore Other Machine Learning Models
+
+-   Further Hyperparameter Tuning
+
+-   Interpretability Analysis

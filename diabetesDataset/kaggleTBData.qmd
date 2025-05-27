@@ -1,0 +1,330 @@
+---
+title: "TB Trends: Global & Regional Insights"
+format:
+  html:
+    toc: true
+    toc-location: left
+    fig-align: center
+    fig-cap-location: bottom
+    other-links:
+      - text: Tuberculosis Trend - Kaggle Dataset
+        href: https://www.kaggle.com/datasets/khushikyad001/tuberculosis-trends-global-and-regional-insights/data
+    
+execute:
+  echo: false
+  warning: false
+  message: false
+
+editor: visual
+
+bibliography: references.bib
+csl: harvard-stellenbosch-university.csl
+
+filters:
+  - acronyms
+
+acronyms:
+    keys:
+      - shortname: TB
+        longname: Tuberculosis
+      - shortname: WHO
+        longname: World Health Organisation
+      - shortname: LTBI
+        longname: latent Tuberculosis infection
+      - shortname: MTB
+        longname: Mycobacterium tuberculosis
+      - shortname: MSE
+        longname: Mean Squared Error
+---
+
+# Packages \| Modules \| Environments:
+
+```{r}
+#| label: installLoadPackages
+
+# Required packages
+requiredPackages <- c("tidyverse", "reticulate", "scales", "readxl", "REDCapR", "RKaggle")
+
+# Function to check if packages are installed
+installPackages <- function(pkg) {
+  if(!requireNamespace(pkg, quietly = TRUE)) {
+    install.packages(pkg, dependencies = TRUE, quiet = FALSE)
+  }
+}
+
+# Install packages if not found on local
+invisible(sapply(requiredPackages, installPackages))
+
+# Load packages
+invisible(lapply(requiredPackages, library, character.only = TRUE))
+```
+
+```{r}
+#| label: installPythonPackages
+
+# Include the required packages
+pythonPackages <- c('numpy', 'pandas', 'seaborn', 'matplotlib', 'statsmodels', 'scienceplots', 'scikit-learn')
+
+# Function to check whether the packages / modules have been installed
+installPythonPackages <- function(packages) {
+  for(pkg in packages) {
+    if(!reticulate::py_module_available(pkg)) {
+      message("Installing Python packages ", pkg)
+      reticulate::py_install(pkg, pip = FALSE)
+    } else {
+      message("Python package ", pkg, "is already installed")
+    }
+  }
+}
+
+# Install packages
+installPythonPackages(pythonPackages)
+```
+
+```{python}
+#| label: loadPythonModules
+
+# Import python modules
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import statsmodels.api as sm
+import scienceplots
+import seaborn as sns
+```
+
+# Import Data:
+
+```{r}
+#| label: importDataSet
+
+# Import dataset from Kaggle
+tbTrends <- get_dataset('khushikyad001/tuberculosis-trends-global-and-regional-insights')
+
+colnames(tbTrends)
+```
+
+```{python}
+#| label: convertDataset
+
+# Convert R object to Python object using Reticulate
+tbTrends = r.tbTrends
+```
+
+# Introduction:
+
+This analysis project uses the {{< acr TB >}} Trends dataset from Kaggle [@tbtrends_kaggle]. A link has be provided to the data under Other Links.
+
+{{< acr TB >}} is a respirator disease caused by {{< acr MTB >}}. It is spread through the air via droplets when individuals who are infected with {{< acr MTB >}} cough, sneeze, or spit. According to the {{< acr WHO >}}, {{< acr TB >}} caused 1.25 million deaths in 2023, and it is estimated that 25% of the global population is infected with {{< acr MTB >}} [@li_2023].
+
+@fig-casesDeaths indicates the amount of {{< acr TB >}} cases and deaths since 2000 up until 2024.
+
+# Exploratory Data Analysis:
+
+## Data types per column:
+
+@tbl-DataTypes provides a summary of the `tbTrends` dataframe. It outputs information about each column, including column name and the type assigned to each of the columns. This helps us in understanding the nature of our data.
+
+```{python}
+#| label: tbl-DataTypes
+#| tbl-cap: 'The table indicates the nature of the data'
+#| tbl-cap-location: bottom
+
+# Display data types for each column
+pd.DataFrame(tbTrends.dtypes, columns=['dtype']).reset_index().rename(columns={'index': 'column'})
+```
+
+## Missing values:
+
+@tbl-MissingValues calculates and displays the number of missing values present in each column within our `{tbTrends}` dateframe. This information helps us decide in appropriate cleaning steps.
+
+```{python}
+#| label: tbl-MissingValues
+#| tbl-cap: 'The table indicates the amount of missing values per column'
+#| tbl-cap-location: bottom
+
+# Missing values
+tbTrends.isnull().sum().reset_index().rename(columns={'index': 'column', 0: 'missing_values'})
+```
+
+# Data focused on South Africa:
+
+## Cleaned data:
+
+@tbl-southAfrica shows the effects made to clean the data for further analysis. Several operations have been performed on `tbTrends`, and a new dataframe, `clean` was created. The operations included dropping the following columns:
+
+-   `Region`
+
+-   `Country`
+
+-   `Income_level`
+
+These are not needed for further analysis within this analysis. The data is grouped by `Year` and we calculate the sum of the values for each year. We `reset_index` to convert the output back a dataframe.
+
+## TB Stats in South Africa:
+
+```{python}
+#| label: tbl-southAfrica
+#| tbl-cap: 'Table showing the removal of several columns and aggregating the data'
+#| tbl-cap-location: bottom
+
+# Filter Data to show South Africa
+southAfrica = tbTrends[tbTrends['Country'] == 'South Africa']
+
+# Group Data by year and Drop columns
+clean = southAfrica.drop(columns=['Region', 'Income_Level', 'Country']).groupby('Year').sum().reset_index()
+
+clean.head()
+```
+
+@fig-casesDeaths is a lineplot that visualises the trend of {{< acr TB >}} cases and deaths in 'South Africa' over several years.
+
+```{python}
+#| label: fig-casesDeaths
+#| fig-cap: 'TB Cases vs TB Deaths per year'
+#| fig-align: 'center'
+#| fig-cap-location: bottom
+
+import matplotlib.ticker as ticker
+plt.style.use(['nature', 'science'])
+
+plt.figure(figsize=(12,8), dpi=300)
+sns.lineplot(data=clean, x='Year', y='TB_Cases', label='TB Cases (per year)')
+sns.lineplot(data=clean, x='Year', y='TB_Deaths', label='TB Deaths (per year)')
+plt.title('TB cases vs TB deaths')
+plt.xlabel('Year')
+plt.ylabel('Counts')
+plt.gca().yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:,.0f}'))
+plt.legend()
+plt.show()
+```
+
+```{python}
+#| label: fig-TBCasesDistr
+#| fig-cap: 'Figure to indicate distribution'
+#| fig-cap-location: bottom
+
+# Check whether TB_Cases are normally distributed
+plt.figure(figsize=(12,8), dpi=300)
+sns.histplot(clean['TB_Cases'], kde=True)
+plt.title('Distribution Plot for TB Cases')
+plt.xlabel('TB Cases')
+plt.ylabel('Count')
+plt.show()
+```
+
+## QQ Plot:
+
+QQ Plot that is used to check whether our data follows a normal distribution.
+
+Why does the QQ Plot show. On the x-axis, it shows what the theoretical quantiles should be and the y-axis shows our data.
+
+```{python}
+#| label: fig-QQPlotTBCases
+#| fig-cap: 'QQ Plot'
+#| fig-cap-location: bottom
+
+sm.qqplot(clean['TB_Cases'], line='s')
+plt.title('QQ Plot')
+plt.show()
+```
+
+```{python}
+#| label: fig-TBDeathsDist
+#| fig-cap: 'Figure to show distribition of TB Deaths data'
+#| fig-cap-location: bottom
+
+plt.figure(figsize=(12,8), dpi=300)
+sns.histplot(clean['TB_Deaths'], kde=True)
+plt.title('Distribution Plot for TB Deaths')
+plt.xlabel('TB Deaths')
+plt.ylabel('Count')
+plt.show()
+```
+
+```{python}
+#| label: fig-LinearRegression
+
+# Import the required model
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error
+from sklearn.preprocessing import StandardScaler
+
+# Assign the target and feature
+X = clean.drop('TB_Cases', axis=1)
+y = clean['TB_Cases']
+
+# Split the data FIRST before scaling
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=39)
+
+# Initialize scaler
+scaler = StandardScaler()
+
+# Fit the scaler on TRAIN data only, then transform both train and test
+X_train_scaled = scaler.fit_transform(X_train)  # fit_transform for training data
+X_test_scaled = scaler.transform(X_test)       # transform only for test data
+
+# Initiate the model
+model = LinearRegression().fit(X_train_scaled, y_train)
+
+# Make predictions
+y_pred = model.predict(X_test_scaled)
+
+# Evaluate
+mse = mean_squared_error(y_test, y_pred)
+```
+
+```{r}
+mseR <- py$mse
+```
+
+```{python}
+#| label: fig-LinReg
+#| fig-cap: ' Linear Regression plot'
+
+linRes = y_test - y_pred
+plt.figure(figsize=(12,8), dpi=300)
+plt.scatter(y_pred , linRes)
+plt.axhline(y=0, color='red', linestyle='-')
+plt.title('Linear Regression between TB Cases and Smoking')
+plt.show()
+```
+
+As we can see from @fig-LinReg, and the {{< acr MSE >}}, a value of `{r} format(mseR, digits=2, nsmall=2)` the measurement of how far the model's prediction are from the actual values, is very high. This indicates that the model performed poorly. This model, Linear Regression, failed to capture the patterns in the data.
+
+```{python}
+#| label: fig-RandomForest
+#| fig-cap: 'Plot using Random Foreset as a model'
+
+from sklearn.ensemble import RandomForestRegressor
+
+rf = RandomForestRegressor()
+rf.fit(X_train, y_train)
+rfy_pred = rf.predict(X_test)
+
+randomForestMSE = mean_squared_error(y_test,rfy_pred)
+
+plt.figure(figsize=(12,8), dpi=300)
+plt.scatter(y_test, rfy_pred, alpha=0.5, label='Predition')
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--', label='Perfect Prediction')
+plt.legend()
+plt.show()
+```
+
+```{r}
+#| label: randomForestConversion
+randomForestMSE <- py$randomForestMSE
+```
+
+As we can see, the {{< acr MSE >}} for the Random Forest Model is `{r} format(randomForestMSE, digits=2, nsmall=2)`. This is out performs the Linear Regression model that was used earlier.
+
+# Future Work:
+
+-   Looking at different Feature `X` compared to the Target `y`
+
+-   Looking at different regions and some comparisons.
+
+\newpage
+
+# Bibliography:
