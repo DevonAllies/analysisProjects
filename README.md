@@ -8,7 +8,7 @@ This repository houses a collection of data analysis projects covering various d
 * **Project List**
 	**[`covid19Dataset/`](covid19Dataset/)**
 	**[`diabetesDataset/`](diabetesDataset/)**
-	**[`kaggleTBData_files/`](kaggleTBData_files/)
+	**[`kaggleTBData_files/`](kaggleTBData_files/)**
 
 ## Contact
 
