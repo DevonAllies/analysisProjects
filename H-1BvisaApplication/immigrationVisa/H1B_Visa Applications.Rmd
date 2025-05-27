@@ -1,0 +1,169 @@
+---
+title: "H-1B Visa Applications"
+author: "Devon Allies"
+date: "`r Sys.Date()`"
+output: 
+  pdf_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, libraryAdditions, include=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(readr)
+library(lubridate)
+library(dplyr)
+library(tidyr)
+library(knitr)
+```
+\newpage
+
+# Introduction
+
+## Overview of the H-1B Program
+The H-1B is a non -immigrant visa program in the United States that allows employers to employ foreign workers. The program is aimed towards professionals with a "theoretical and practical applications of a body of highly specialized knowledge" 
+This program allows companies in the United States to hire foreign professionals with specific skills and expertise across various industries and locations.
+
+## Dataset Description
+The H-1B Employer Data Hub is a database that launched in April of 2019 by the USCIS. This database provides transparency into the H-1B visa program
+
+# Data Preperation
+
+## Data Importing & Cleaning
+
+```{r, dataImport, echo=FALSE}
+visa <- read.csv2("Employer Information.csv",
+                  header = TRUE,
+                  sep = "\t",
+                  fileEncoding = "UTF-16LE",
+                  encoding = "UTF-8")
+
+visa <- visa[, -1]
+```
+
+Initial Data Exploration
+```{r, dataExploration, echo=FALSE}
+names(visa)
+summary(visa)
+glimpse(visa)
+```
+
+# Analysis
+
+## Trends
+The analysis of H-1B applications for the fiscal years, 2020 - 2024, reveals some patterns:
+
+### Approval Rates
+```{r, approval, echo=FALSE}
+yearlyCounts <- visa %>%
+  group_by(Fiscal.Year) %>%
+  summarise(approval = sum(Initial.Approval == 1),
+            denial = sum(Initial.Denial),
+            .groups = "drop")
+ggplot(yearlyCounts, aes(x = Fiscal.Year, y = approval)) +
+  geom_col() + 
+  labs(title = "H-1B Approval",
+       x = "Year",
+       y = "Approval Amount") + 
+  theme_minimal() + 
+  theme(plot.title = element_text(hjust = 0.5),
+        panel.grid = element_blank())
+
+```
+
+### Denial Rates
+```{r, denial, echo=FALSE}
+ggplot(yearlyCounts, aes(x = Fiscal.Year, y = denial)) + 
+  geom_col() + 
+  labs(title = "H-1B Denial",
+       x = "Year",
+       y = "Denial Amount") + 
+  theme_minimal() + 
+  theme(plot.title = element_text(hjust = 0.5),
+        panel.grid = element_blank())
+```
+
+### Approval & Denial Rates
+```{r, rates, echo=FALSE}
+yearlyCounts <- yearlyCounts %>%
+  mutate(total_applications = approval + denial,
+         approvalRate = (approval / total_applications) * 100,
+         denialRate = (denial / total_applications) * 100)
+
+kable(view(round(yearlyCounts)),
+      caption = "Table 1: Summary Statistics for H-1B Visa Program")
+
+```
+
+### Hypothesis testing
+```{r, hypothesis, echo=FALSE}
+table <- matrix(c(yearlyCounts$approval, 
+                  yearlyCounts$denial),
+                ncol = 2,
+                byrow = FALSE)
+colnames(table) <- c("Approval", "Denial")
+rownames(table) <- yearlyCounts$Fiscal.Year
+
+test <- chisq.test(table)
+test
+```
+
+Overall, the approval rates have increased while denials have decreased. The trend suggest a shift in H-1B visa processing policies and practices over the 5 year period, with a clear move towards higher approval rates and fewer denials.
+
+The chi-square test helps to determine if the observed changes in approval and denial rates are statically significant or merely random chance. This is crucial because:
+
+ - it validates the trends
+ - provides evidence to support the claims about the changes
+ 
+The p-value, <2.2e-16, suggests that the approval and denial rate is not due too random chance.
+
+## Distribution
+
+### Distribution per State (Top 5 State)
+```{r, stateApplication, echo=FALSE}
+stateDist <- visa %>%
+  group_by(Petitioner.State) %>%
+  summarise(totalApplication = n()) %>%
+  arrange(desc(totalApplication)) %>%
+  head(5)
+  
+
+ggplot(stateDist, aes(x = reorder(Petitioner.State, -totalApplication), y = totalApplication)) + 
+  geom_col() + 
+  labs(title = "Top 5 States for H-1B Applications",
+       x = "State",
+       y = "Total Applications") + 
+  theme_minimal() + 
+  theme(plot.title = element_text(hjust = 0.5),
+        panel.grid = element_blank())
+  
+```
+
+### Distribution per Industry (Top 5 Industries)
+```{r, industryDist, echo=FALSE}
+industryDist <- visa %>%
+  group_by(Industry..NAICS..Code) %>%
+  summarise(totalApplication = n()) %>%
+  arrange(desc(totalApplication)) %>%
+  head(5)
+
+ggplot(industryDist, aes(x = reorder(Industry..NAICS..Code, -totalApplication), y = totalApplication)) + 
+  geom_col() + 
+  coord_flip() + 
+  labs(title = "Top 5 Industy's for H-1B Applications",
+       x = "Industry",
+       y = "Total Application") + 
+  theme_minimal() + 
+  theme(plot.title = element_text(hjust = 0.5),
+        panel.grid = element_blank())
+```
+
+# Conclusion
+The approval rates have been increasing over the last 5 years with the denials decreasing, indicating that more and more foreign workers are getting access to the United States. The denial rate during the 2020 fiscal year could be due to the COVID-19 pandemic, which caused major disruptions in the visa processing. 
+
+The statistical evidence strengthens the conclusion that there has been a substantial shift in the H-1B processing, with a clear trend towards higher approval rates and lower denial rates.
